@@ -1,30 +1,33 @@
-import streamlit as st
-
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 from langchain.chains import RetrievalQA
 from langchain import hub
-from dotenv import load_dotenv
 from langchain_openai import OpenAIEmbeddings
 from langchain_pinecone import PineconeVectorStore
 from langchain_openai import ChatOpenAI
 
-load_dotenv()
-
 def get_ai_message(user_message):
+    # OpenAIEmbeddings: OpenAI Embedding 모델 "text-embedding-3-large"로 텍스트를 벡터화
     embedding = OpenAIEmbeddings(model="text-embedding-3-large")
     index_name = 'spring-index'
+
+    #Pinecone에 이미 만들어진 인덱스('spring-index')를 불러옵니다. 이 인덱스에는 스프링 관련 문서(문서의 벡터)가 저장되어 있다고 가정
     database = PineconeVectorStore.from_existing_index(index_name=index_name, embedding=embedding)
     llm = ChatOpenAI(model='gpt-4o')
     prompt = hub.pull("rlm/rag-prompt")
 
+    # PineconeVectorStore로부터 문서를 가져올 수 있는 Retriever 객체
     retriever = database.as_retriever()  # VectorStore에서 retriever 생성
+
+    # 사용자의 질의에 맞춰 retriever를 통해 문서를 찾아보고, 그 문서를 참고해 LLM(GPT-4)을 사용하여 답변을 생성
     qa_chain = RetrievalQA.from_chain_type(
         llm=llm,
         retriever=retriever,
         chain_type_kwargs={"prompt": prompt}  # 필요한 경우 추가 인자 설정
     )
 
+    # 사용자의 질문을 수정(혹은 보정)할 때 참고할 수 있는 '사전' 데이터.
+    # 예: "언어"라는 표현이 들어오면 "자바"를 의미한다고 해석할 수 있게끔 사전을 두는 식의 예시
     dictionary = ["언어를 나타내는 표현 -> 자바"]
 
     prompt = ChatPromptTemplate.from_template(
@@ -39,28 +42,20 @@ def get_ai_message(user_message):
     질문: {{question}}
     """)
 
+    # 주석 
+    """
+    - prompt | llm | StrOutputParser() → 이 파이프라인은
+        1. prompt: 사용자 질문을 prompt 템플릿에 넣어 완성
+        2. llm(GPT-4): prompt에 따라 답변(즉 질문 수정안)을 생성
+        3. StrOutputParser(): 답변(문자열)을 파싱
+    - 이 결과물(수정된 질문)을 {"query": chain} 형태로 지정하여 qa_chain(RetrievalQA)에 연결
+    - 즉, 최종적으로 spring_chain은
+        1. 사용자 질문을 사전에 따라 수정
+        2. 수정된 질문을 PineconeRetriever로 검색
+        3. 검색된 문서를 바탕으로 GPT-4가 최종 답변
+    """
     chain = prompt | llm | StrOutputParser()
     spring_chain = {"query": chain} | qa_chain
     ai_message = spring_chain.invoke({"question": user_message})
     return ai_message
 
-st.set_page_config(page_title="스프링 메뉴얼 설명 봇", page_icon="🍃")
-
-st.title("🍃 스프링 설명 챗봇")
-st.caption("스프링 프레임워크에 관련된 모든것을 답변해드립니다!")
-
-if 'message_list' not in st.session_state:
-    st.session_state.message_list = []
-for message in st.session_state.message_list:
-    with st.chat_message(message["role"]):
-        st.write(message["content"])
-
-if user_question := st.chat_input(placeholder="스프링 프레임워크에 관련된 궁금한 내용들을 말씀해주세요!"):
-    with st.chat_message("user"):
-        st.write(user_question)
-    st.session_state.message_list.append({"role": "user", "content": user_question})
-
-    ai_message = get_ai_message(user_question)
-    with st.chat_message("ai"):
-            st.write(ai_message["result"])
-    st.session_state.message_list.append({"role": "ai", "content": ai_message["result"]})
