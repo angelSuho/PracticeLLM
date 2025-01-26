@@ -1,7 +1,7 @@
 import streamlit as st
 from dotenv import load_dotenv
 
-from llm import get_ai_message
+from llm import get_ai_response
 
 load_dotenv()
 
@@ -23,7 +23,7 @@ if user_question := st.chat_input(placeholder="스프링 프레임워크에 관�
     st.session_state.message_list.append({"role": "user", "content": user_question})
 
     with st.spinner("답변을 생성하는 중입니다."):
-        ai_message = get_ai_message(user_question)
+        ai_response = get_ai_response(user_question)
         with st.chat_message("ai"):
-                st.write(ai_message["result"])
-        st.session_state.message_list.append({"role": "ai", "content": ai_message["result"]})
+            ai_response = st.write_stream(ai_response)
+            st.session_state.message_list.append({"role": "ai", "content": ai_response})
