@@ -3,6 +3,8 @@
 
 ### dotenv ###
 .env
+*.pdf
+.devcontainer
 
 ### Git ###
 # Created by git for backups. To disable backups in Git:
@@ -59,6 +61,7 @@ pip-log.txt
 pip-delete-this-directory.txt
 
 # Unit test / coverage reports
+.idea
 htmlcov/
 .tox/
 .nox/
